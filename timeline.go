@@ -73,7 +73,7 @@ func (t *Timeline) WriteHTMLTo(w io.Writer) error {
 		// Info div.
 		fmt.Fprintf(w, `%s<div class="info">%s`, tab, nl)
 		fmt.Fprintf(w, `%s<p><h2>Iteration %d</h2>%s`, tab, n+1, nl)
-		fmt.Fprintf(w, t.timeline[n].Metrics.String())
+		io.WriteString(w, t.timeline[n].Metrics.String())
 		fmt.Fprintf(w, "%s%s</p></div>%s", nl, tab, nl)
 	}
 

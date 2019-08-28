@@ -25,10 +25,10 @@ type Config struct {
 // Tachymeter holds event durations
 // and counts.
 type Tachymeter struct {
+	Count    uint64
 	sync.Mutex
 	Size     uint64
 	Times    timeSlice
-	Count    uint64
 	WallTime time.Duration
 	HBins    int
 }

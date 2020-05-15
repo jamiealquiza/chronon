@@ -11,7 +11,9 @@ import (
 // Calc summarizes Tachymeter sample data
 // and returns it in the form of a *Metrics.
 func (m *Tachymeter) Calc() *Metrics {
-	metrics := &Metrics{}
+	metrics := &Metrics{
+		Histogram: &Histogram{},
+	}
 	if atomic.LoadUint64(&m.Count) == 0 {
 		return metrics
 	}

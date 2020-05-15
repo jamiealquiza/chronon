@@ -1,13 +1,13 @@
 package tachymeter
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
+	"os"
 	"path/filepath"
 	"strconv"
-	"strings"
+	"text/template"
 	"time"
 )
 
@@ -33,6 +33,11 @@ func (t *Timeline) AddEvent(m *Metrics) {
 	})
 }
 
+const (
+	tab string = `	`
+	nl  string = "\n"
+)
+
 // WriteHTML takes an absolute path p and writes an
 // html file to 'p/tachymeter-<timestamp>.html' of all
 // histograms held by the *Timeline, in series.
@@ -41,46 +46,54 @@ func (t *Timeline) WriteHTML(p string) error {
 	if err != nil {
 		return err
 	}
-	var b bytes.Buffer
+	fname := fmt.Sprintf("%s/tachymeter-%d.html", path, time.Now().Unix())
+	f, err := os.Create(fname)
+	if err != nil {
+		return fmt.Errorf("can't create %s: %v", fname, err)
+	}
+	defer f.Close()
 
-	b.WriteString(head)
+	return t.WriteHTMLTo(f)
+}
+
+// WriteHTMLTo ...
+func (t *Timeline) WriteHTMLTo(w io.Writer) error {
+	_, err := io.WriteString(w, head)
+	if err != nil {
+		return err
+	}
 
 	// Append graph + info entry for each timeline
 	// event.
 	for n := range t.timeline {
 		// Graph div.
-		b.WriteString(fmt.Sprintf(`%s<div class="graph">%s`, tab, nl))
-		b.WriteString(fmt.Sprintf(`%s%s<canvas id="canvas-%d"></canvas>%s`, tab, tab, n, nl))
-		b.WriteString(fmt.Sprintf(`%s</div>%s`, tab, nl))
+		fmt.Fprintf(w, `%s<div class="graph">%s`, tab, nl)
+		fmt.Fprintf(w, `%s%s<canvas id="canvas-%d"></canvas>%s`, tab, tab, n, nl)
+		fmt.Fprintf(w, `%s</div>%s`, tab, nl)
 		// Info div.
-		b.WriteString(fmt.Sprintf(`%s<div class="info">%s`, tab, nl))
-		b.WriteString(fmt.Sprintf(`%s<p><h2>Iteration %d</h2>%s`, tab, n+1, nl))
-		b.WriteString(t.timeline[n].Metrics.String())
-		b.WriteString(fmt.Sprintf("%s%s</p></div>%s", nl, tab, nl))
+		fmt.Fprintf(w, `%s<div class="info">%s`, tab, nl)
+		fmt.Fprintf(w, `%s<p><h2>Iteration %d</h2>%s`, tab, n+1, nl)
+		io.WriteString(w, t.timeline[n].Metrics.String())
+		fmt.Fprintf(w, "%s%s</p></div>%s", nl, tab, nl)
 	}
 
 	// Write graphs.
 	for id, m := range t.timeline {
-		s := genGraphHTML(m, id)
-		b.WriteString(s)
+		err := genGraphHTML(w, m, id)
+		if err != nil {
+			return fmt.Errorf("can't generate graph.js: %v", err)
+		}
 	}
 
-	b.WriteString(tail)
-
-	// Write file.
-	d := []byte(b.String())
-	fname := fmt.Sprintf("%s/tachymeter-%d.html", path, time.Now().Unix())
-	err = ioutil.WriteFile(fname, d, 0644)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	_, err = io.WriteString(w, head)
+	return err
 }
 
+var graphTmpl = template.Must(template.New("graph").Parse(graph))
+
 // genGraphHTML takes a *timelineEvent and id (used for each graph
-// html element ID) and creates a chart.js graph output.
-func genGraphHTML(te *timelineEvent, id int) string {
+// html element ID) and writes a chart.js graph into w.
+func genGraphHTML(w io.Writer, te *timelineEvent, id int) error {
 	keys := []string{}
 	values := []uint64{}
 
@@ -94,9 +107,17 @@ func genGraphHTML(te *timelineEvent, id int) string {
 	keysj, _ := json.Marshal(keys)
 	valuesj, _ := json.Marshal(values)
 
-	out := strings.Replace(graph, "XCANVASID", strconv.Itoa(id), 1)
-	out = strings.Replace(out, "XKEYS", string(keysj), 1)
-	out = strings.Replace(out, "XVALUES", string(valuesj), 1)
-
-	return out
+	err := graphTmpl.Execute(w, struct {
+		CanvasID string
+		Keys     string
+		Values   string
+	}{
+		CanvasID: strconv.Itoa(id),
+		Keys:     string(keysj),
+		Values:   string(valuesj),
+	})
+	if err != nil {
+		return fmt.Errorf("can't execute graph template: %v", err)
+	}
+	return nil
 }

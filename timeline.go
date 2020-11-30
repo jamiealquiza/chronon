@@ -23,13 +23,15 @@ type Timeline struct {
 type timelineEvent struct {
 	Metrics *Metrics
 	Created time.Time
+	Name    string
 }
 
 // AddEvent adds a *Metrics to the *Timeline.
-func (t *Timeline) AddEvent(m *Metrics) {
+func (t *Timeline) AddEvent(m *Metrics, name string) {
 	t.timeline = append(t.timeline, &timelineEvent{
 		Metrics: m,
 		Created: time.Now(),
+		Name:    name,
 	})
 }
 
@@ -54,7 +56,7 @@ func (t *Timeline) WriteHTML(p string) error {
 		b.WriteString(fmt.Sprintf(`%s</div>%s`, tab, nl))
 		// Info div.
 		b.WriteString(fmt.Sprintf(`%s<div class="info">%s`, tab, nl))
-		b.WriteString(fmt.Sprintf(`%s<p><h2>Iteration %d</h2>%s`, tab, n+1, nl))
+		b.WriteString(fmt.Sprintf(`%s<p><h2>%s</h2>%s`, tab, t.timeline[n].Name, nl))
 		b.WriteString(t.timeline[n].Metrics.String())
 		b.WriteString(fmt.Sprintf("%s%s</p></div>%s", nl, tab, nl))
 	}
